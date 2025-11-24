@@ -3,6 +3,8 @@ package service
 import (
 	"errors"
 	"math/rand"
+	"net/url"
+	"regexp"
 	"time"
 
 	"github.com/ttymayor/url-shortener/internal/model"
@@ -11,7 +13,23 @@ import (
 
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-var ErrCodeInUse = errors.New("short code already in use")
+var (
+	ErrCodeInUse   = errors.New("short code already in use")
+	ErrInvalidURL  = errors.New("invalid URL format")
+	ErrInvalidCode = errors.New("invalid short code format or reserved word")
+)
+
+// Reserved words that cannot be used as short codes
+var reservedCodes = map[string]bool{
+	"api":    true,
+	"health": true,
+	"login":  true,
+	"logout": true,
+	"static": true,
+	"admin":  true,
+}
+
+var codeRegex = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 
 type URLService interface {
 	ShortenURL(originalURL, customCode string) (*model.URL, error)
@@ -30,10 +48,25 @@ func NewURLService(repo repository.URLRepository) URLService {
 }
 
 func (s *urlService) ShortenURL(originalURL, customCode string) (*model.URL, error) {
+	// 1. Validate Original URL
+	parsedURL, err := url.ParseRequestURI(originalURL)
+	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return nil, ErrInvalidURL
+	}
+
 	var shortCode string
 
-	// If user provided a custom code
+	// 2. Handle Custom Code
 	if customCode != "" {
+		// Validate format (alphanumeric + hyphen)
+		if !codeRegex.MatchString(customCode) {
+			return nil, ErrInvalidCode
+		}
+		// Check reserved words
+		if reservedCodes[customCode] {
+			return nil, ErrInvalidCode
+		}
+
 		// Check if it already exists
 		existing, err := s.repo.FindByShortCode(customCode)
 		if err != nil {

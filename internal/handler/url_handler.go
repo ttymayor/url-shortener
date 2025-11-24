@@ -36,6 +36,14 @@ func (h *URLHandler) Shorten(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Custom short code is already in use"})
 			return
 		}
+		if errors.Is(err, service.ErrInvalidURL) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL format"})
+			return
+		}
+		if errors.Is(err, service.ErrInvalidCode) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid short code format or reserved word"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to shorten URL"})
 		return
 	}
