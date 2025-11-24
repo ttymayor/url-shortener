@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"math/rand"
 	"time"
 
@@ -10,9 +11,12 @@ import (
 
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
+var ErrCodeInUse = errors.New("short code already in use")
+
 type URLService interface {
-	ShortenURL(originalURL string) (*model.URL, error)
+	ShortenURL(originalURL, customCode string) (*model.URL, error)
 	GetOriginalURL(shortCode string) (string, error)
+	GetAllURLs() ([]*model.URL, error)
 }
 
 type urlService struct {
@@ -25,10 +29,26 @@ func NewURLService(repo repository.URLRepository) URLService {
 	}
 }
 
-func (s *urlService) ShortenURL(originalURL string) (*model.URL, error) {
-	// Generate a random short code
-	// In a real app, you'd check for collisions
-	shortCode := generateShortCode(6)
+func (s *urlService) ShortenURL(originalURL, customCode string) (*model.URL, error) {
+	var shortCode string
+
+	// If user provided a custom code
+	if customCode != "" {
+		// Check if it already exists
+		existing, err := s.repo.FindByShortCode(customCode)
+		if err != nil {
+			return nil, err
+		}
+		if existing != nil {
+			return nil, ErrCodeInUse
+		}
+		shortCode = customCode
+	} else {
+		// Generate a random short code
+		shortCode = generateShortCode(6)
+		// In a real production app, you should also loop here to ensure the
+		// generated code doesn't collide, though the probability is low.
+	}
 
 	url := &model.URL{
 		OriginalURL: originalURL,
@@ -51,6 +71,10 @@ func (s *urlService) GetOriginalURL(shortCode string) (string, error) {
 		return "", nil
 	}
 	return url.OriginalURL, nil
+}
+
+func (s *urlService) GetAllURLs() ([]*model.URL, error) {
+	return s.repo.FindAll()
 }
 
 func generateShortCode(length int) string {

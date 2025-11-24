@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,7 +19,8 @@ func NewURLHandler(service service.URLService) *URLHandler {
 }
 
 type ShortenRequest struct {
-	URL string `json:"url" binding:"required"`
+	URL  string `json:"url" binding:"required"`
+	Code string `json:"code"` // Optional custom code
 }
 
 func (h *URLHandler) Shorten(c *gin.Context) {
@@ -28,8 +30,12 @@ func (h *URLHandler) Shorten(c *gin.Context) {
 		return
 	}
 
-	url, err := h.service.ShortenURL(req.URL)
+	url, err := h.service.ShortenURL(req.URL, req.Code)
 	if err != nil {
+		if errors.Is(err, service.ErrCodeInUse) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Custom short code is already in use"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to shorten URL"})
 		return
 	}
@@ -38,6 +44,17 @@ func (h *URLHandler) Shorten(c *gin.Context) {
 		"short_code":   url.ShortCode,
 		"original_url": url.OriginalURL,
 	})
+}
+
+func (h *URLHandler) GetAllURLs(c *gin.Context) {
+	urls, err := h.service.GetAllURLs()
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve URLs"})
+		return
+	}
+
+	c.JSON(http.StatusOK, urls)
 }
 
 func (h *URLHandler) Redirect(c *gin.Context) {
