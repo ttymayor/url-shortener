@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Redis    RedisConfig
 	Postgres PostgresConfig
+	Auth     AuthConfig
 }
 
 type RedisConfig struct {
@@ -27,6 +28,11 @@ type PostgresConfig struct {
 	Password string
 	DBName   string
 	SSLMode  string
+}
+
+type AuthConfig struct {
+	APIKey        string
+	SessionSecret string
 }
 
 func Load() *Config {
@@ -53,6 +59,10 @@ func Load() *Config {
 			Password: getEnv("POSTGRES_PASSWORD", "postgres"),
 			DBName:   getEnv("POSTGRES_DB", "url_shortener"),
 			SSLMode:  getEnv("POSTGRES_SSLMODE", "disable"),
+		},
+		Auth: AuthConfig{
+			APIKey:        getEnv("API_KEY", "my-secret-api-key"),
+			SessionSecret: getEnv("SESSION_SECRET", "default-insecure-secret"),
 		},
 	}
 }
